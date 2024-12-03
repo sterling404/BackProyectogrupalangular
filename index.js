@@ -132,6 +132,19 @@ app.post('/api/platos', async (req, res) => {
   }
 });
 
+// Endpoint para obtener todos los pedidos
+app.get('/api/pedidos', (req, res) => {
+  const query = `
+    SELECT * FROM Pedidos;
+  `;
+  db.query(query, (err, results) => {
+    if (err) {
+      console.error('Error al obtener los pedidos:', err);
+      return res.status(500).json({ message: 'Error al obtener los pedidos' });
+    }
+    res.json(results); // Devuelve todos los pedidos
+  });
+});
 
 // Obtener todos los Platos
 app.get('/api/platos', async (req, res) => {
@@ -184,21 +197,54 @@ app.put('/api/platos/:id', async (req, res) => {
 
 // --- Endpoint para Pedidos --- //
 // Crear Pedido
-app.post('/api/pedidos', async (req, res) => {
-  const { usuario_id, mesa, estado } = req.body;
-  if (!usuario_id || !mesa) {
-    return res.status(400).json({ error: 'Usuario y mesa son obligatorios.' });
-  }
-  try {
-    const [result] = await pool.promise().query(
-      'INSERT INTO Pedidos (usuario_id, mesa, estado) VALUES (?, ?, ?)',
-      [usuario_id, mesa, estado || 'pendiente']
-    );
-    res.status(201).json({ message: 'Pedido creado', id: result.insertId });
-  } catch (error) {
-    res.status(500).json({ error: 'Error al crear pedido.' });
-  }
+// Endpoint para crear un nuevo pedido
+app.post('/api/pedidos', (req, res) => {
+  const { usuario_id, mesa, productos } = req.body;
+
+  // Crear un nuevo pedido
+  const query = `INSERT INTO Pedidos (usuario_id, mesa) VALUES (?, ?)`;
+  db.query(query, [usuario_id, mesa], (err, result) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).send('Error al crear el pedido');
+    }
+
+    const pedidoId = result.insertId;
+
+    // Insertar los detalles del pedido
+    const detallesQuery = `INSERT INTO DetallesPedido (pedido_id, plato_id, cantidad, modificaciones) VALUES ?`;
+    const detallesValues = productos.map((producto) => [
+      pedidoId,
+      producto.id,
+      producto.cantidad,
+      producto.modificaciones || '',
+    ]);
+
+    db.query(detallesQuery, [detallesValues], (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).send('Error al agregar detalles del pedido');
+      }
+
+      res.status(200).send({ mensaje: 'Pedido creado exitosamente', pedidoId });
+    });
+  });
 });
+// app.post('/api/pedidos', async (req, res) => {
+//   const { usuario_id, mesa, estado } = req.body;
+//   if (!usuario_id || !mesa) {
+//     return res.status(400).json({ error: 'Usuario y mesa son obligatorios.' });
+//   }
+//   try {
+//     const [result] = await pool.promise().query(
+//       'INSERT INTO Pedidos (usuario_id, mesa, estado) VALUES (?, ?, ?)',
+//       [usuario_id, mesa, estado || 'pendiente']
+//     );
+//     res.status(201).json({ message: 'Pedido creado', id: result.insertId });
+//   } catch (error) {
+//     res.status(500).json({ error: 'Error al crear pedido.' });
+//   }
+// });
 
 // Obtener todos los Pedidos
 app.get('/api/pedidos', async (req, res) => {
